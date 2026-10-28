@@ -1,0 +1,26 @@
+# systemd 单元（系统级，现场部署用）
+# 安装：
+#   sudo mkdir -p /etc/vpmin && sudo install -m 600 deploy/vpmin.env.example /etc/vpmin/vpmin.env
+#   sudo vi /etc/vpmin/vpmin.env          # 填真实取流地址/端口
+#   sudo cp deploy/vpmin.service /etc/systemd/system/ && sudo systemctl daemon-reload
+#   sudo systemctl enable --now vpmin && systemctl status vpmin
+#
+# 影子期建议 PORT=5081（与生产 5080 并行对比），确认无误再切 5080。
+[Unit]
+Description=vpmin 球化亮光检测（极简版）
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hasen
+WorkingDirectory=/opt/vpmin
+EnvironmentFile=/etc/vpmin/vpmin.env
+ExecStart=/opt/vpmin/run.sh
+Restart=always
+RestartSec=3
+StandardOutput=append:/var/log/vpmin.log
+StandardError=append:/var/log/vpmin.log
+
+[Install]
+WantedBy=multi-user.target

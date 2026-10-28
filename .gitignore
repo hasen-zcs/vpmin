@@ -1,0 +1,15 @@
+output/
+*.log
+reaction_counter.json
+roi_history.json
+reactions*.jsonl
+shadow.env
+*.env
+!deploy/vpmin.env.example
+.env*
+__pycache__/
+*.pyc
+.idea/
+.vscode/
+*.bak
+*.pre-*

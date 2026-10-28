@@ -1,0 +1,21 @@
+<!doctype html><html><head><meta charset="utf-8"><title>模拟管理页面</title>
+<style>body{font-family:sans-serif;padding:16px}iframe{width:420px;height:300px;border:1px solid #ccc}</style></head>
+<body><h3>模拟管理页面（另一个源 :5097）</h3><div id="out">等待跨源请求…</div>
+<iframe id="vp" src="__BASE__/"></iframe>
+<script>
+const BASE = '__BASE__';
+(async () => {
+  const out = document.getElementById('out');
+  try {
+    const r = await fetch(BASE + '/api/status');
+    const d = await r.json();
+    window.__corsGet = 'ok';
+    out.textContent = 'CORS GET ok：running=' + d.running + ' 状态=' + d.reaction.status;
+    const p = await fetch(BASE + '/api/params', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ start_pixel: 180 }) });
+    await p.json();
+    window.__corsPost = p.status;
+    out.textContent += ' / CORS POST ' + p.status;
+  } catch (e) { out.textContent = 'CORS 失败：' + e; window.__corsGet = 'fail'; }
+})();
+</script></body></html>
