@@ -197,6 +197,14 @@ class Runtime:
                                                                 self.standard.tolerance)))
             self.analysis.max_seconds = max(0.0, float(params.get("max_seconds",
                                                                    self.analysis.max_seconds)))
+            self.runner.merge_gap = max(0.0, float(params.get("merge_gap",
+                                                            getattr(self.runner, "merge_gap", 0.0))))
+            self.runner.guard_window = max(0.0, float(params.get("guard_window",
+                                                               getattr(self.runner, "guard_window", 0.0))))
+            self.runner.guard_peak = float(params.get("guard_peak",
+                                                    getattr(self.runner, "guard_peak", 80.0)))
+            self.runner.min_duration = max(0.0, float(params.get("min_duration",
+                                                                getattr(self.runner, "min_duration", 0.0))))
             if self.event_log is not None and hasattr(self.event_log, "set_params"):
                 self.event_log.set_params(self.params())      # 事件表元信息列跟着热更
             self.store.save(self._roi_dict(), self.params())
@@ -255,6 +263,10 @@ class Runtime:
             "standard_max": self.standard.fallback[1],
             "standard_tolerance": self.standard.tolerance,
             "max_seconds": self.analysis.max_seconds,
+            "merge_gap": getattr(self.runner, "merge_gap", 0.0),
+            "guard_window": getattr(self.runner, "guard_window", 0.0),
+            "guard_peak": getattr(self.runner, "guard_peak", 80.0),
+            "min_duration": getattr(self.runner, "min_duration", 0.0),
         }
 
     def _roi_dict(self) -> dict:

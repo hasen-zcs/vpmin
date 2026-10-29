@@ -25,6 +25,13 @@ class CounterStore:
         self._save()
         return self.value
 
+    def rollback(self) -> int:
+        """把上一个号退回去（杂光被丢弃时用，保证序号连续不跳号）。"""
+        if self.value > 0:
+            self.value -= 1
+            self._save()
+        return self.value
+
     def _save(self) -> None:
         if not self.path:
             return

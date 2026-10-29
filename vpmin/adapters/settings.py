@@ -15,6 +15,10 @@ DEFAULT_PARAMS = {
     "standard_max": 120.0,
     "standard_tolerance": 5.0,
     "max_seconds": 0.0,
+    "merge_gap": 0.0,
+    "guard_window": 0.0,
+    "guard_peak": 80.0,
+    "min_duration": 0.0,
 }
 
 

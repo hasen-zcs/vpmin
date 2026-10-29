@@ -1,7 +1,7 @@
 """生产入口：装配所有层 → 起 HTTP 服务。
 
-    python serve.py --source "rtsp://admin:***@192.0.2.10:554/Streaming/Channels/102" \
-        --source2 "rtsp://admin:***@192.0.2.11:554/Streaming/Channels/102" \
+    python serve.py --source "rtsp://admin:***@10.168.8.110:554/Streaming/Channels/102" \
+        --source2 "rtsp://admin:***@10.168.8.109:554/Streaming/Channels/102" \
         --settings output/settings.json --biz-url http://127.0.0.1:8000/api/standards/current
 """
 
@@ -93,6 +93,10 @@ def build(args):
         sink=JsonlSink(str(out_dir), embed_image=not args.jsonl_no_image),
         counter=CounterStore(str(out_dir / "reaction_counter.json")),
         standard_feed=HttpStandardFeed(args.biz_url, ttl=args.standard_ttl) if args.biz_url else None,
+        merge_gap=float(params.get("merge_gap", 0.0) or 0.0),
+        guard_window=float(params.get("guard_window", 0.0) or 0.0),
+        guard_peak=float(params.get("guard_peak", 80.0) or 80.0),
+        min_duration=float(params.get("min_duration", 0.0) or 0.0),
     )
 
     analysis = AnalysisLoop(probe=probe, runner=runner, painter=painter,

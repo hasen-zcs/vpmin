@@ -48,13 +48,19 @@ class AnalysisLoop:
         self.running = True
 
     def stop(self, reason: str = "manual") -> None:
-        """停止分析：把未判完的曲线也存一张（partial）。"""
+        """停止分析：把未判完的曲线也存一张（partial），并把挂起的记录落盘。"""
         self.stop_reason = reason
         started = self.runner.reaction_start is not None
         ended = self.runner.reaction_end is not None
         if self.running and started and not ended and len(self.runner.curve.view()) >= 2:
             self._save_image(partial=True)
         self.running = False
+        # 断点续接：还在合并窗口里的那条不能丢
+        try:
+            self.runner.flush_pending()
+        except AttributeError:
+            pass
+        self._drain()
 
     # ---------------- 每帧 ----------------
     def on_frame(self, frame) -> None:
@@ -69,26 +75,33 @@ class AnalysisLoop:
         elapsed = self.clock() - self._t0
         self.elapsed = elapsed
         before = self.runner.count
-        record = self.runner.process(frame, elapsed)
+        self.runner.process(frame, elapsed)
         metrics = self.probe.last
 
         self._log_frame(elapsed, metrics)
 
         if self.runner.count != before:
             self._event("START", elapsed, metrics)
-        if record is not None:
+        self._drain()
+
+        self.frames += 1
+        if self.max_seconds > 0 and elapsed >= self.max_seconds:
+            self.stop("max_seconds")
+
+    def _drain(self) -> None:
+        """把 runner 里已就绪的记录写盘（可能是延迟落盘的那条）。"""
+        drain = getattr(self.runner, "drain", None)
+        if drain is None:
+            return
+        for record, end_elapsed, end_metrics in drain():
             self.last_record = record
-            self._event("END", elapsed, metrics)
+            self._event("END", end_elapsed, end_metrics)
             name = self._save_uri(record.get("spheroidization_image", ""), partial=False)
             sink = getattr(self.runner, "sink", None)
             if sink is not None:
                 if name and getattr(sink, "embed_image", True) is False:
                     record["spheroidization_image"] = name      # 只记文件名，图另有文件
                 sink.write(record)
-
-        self.frames += 1
-        if self.max_seconds > 0 and elapsed >= self.max_seconds:
-            self.stop("max_seconds")
 
     # ---------------- 内部 ----------------
     def _log_frame(self, elapsed: float, metrics) -> None:
