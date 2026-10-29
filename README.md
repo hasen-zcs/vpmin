@@ -109,7 +109,27 @@ python -m vpmin.cli --source 测试视频.mp4 --settings output/settings.json \
 - 标准刷新按帧轮询 + TTL（原版后台线程 5s），读缓存语义相同
 - 不做 `max_seconds` 自动停（原版有此参数；需要再说，10 行以内）
 
-## 5.1 输出文件口径（本版，不照抄原版）
+## 5.1 参数基线（现场部署必读）
+
+`config/prod-aligned.json` 是与现场生产逐炉对拍一致的参数，部署时把 `params` 段拷进 `settings.json`，**不要用代码里的默认值**。
+
+其中 **`start_confirm` 是最敏感的一个数**：
+
+- 现场 ROI 只有约 1000 px²（8 边形，外接框 59×71），熔液轻微晃动就让亮光全进全出
+- 实测 4130 帧里，亮光占比在 40% 阈值上下翻转 160 次，最长「连续满足」只有 0.54 秒
+- `start_confirm=0.2` 时起判正常；一旦被调到 1.5 秒，起判会晚 **76 秒**，90.47s 的反应被算成 14.50s，判定结论也跟着错
+
+2026-10-29 现场影子实例就因为网页上把这一项改成 1.5 出现过一次 76 秒偏差（改回 0.2 后下一炉即恢复毫秒级对齐）。回归用例 `tests/test_real_frame_regression.py` 用真实逐帧数据把「参数 → 起判时刻」钉死，改错立刻红：
+
+```bash
+python tests/test_real_frame_regression.py
+# 0.2s → 33109.31（与生产一致）
+# 1.5s → 33185.26（事故复现，滞后 75.96s）
+```
+
+**改现场参数请走「先备份 → 改 → 回读校验 → 观察下一炉」流程；settings 只在启动时 load，热更必须走 `POST /api/params`，直接编辑 settings.json 进程不会重读。**
+
+## 5.2 输出文件口径（本版，不照抄原版）
 
 - `output/frames/web_<时间戳>_reaction.csv`：11 列，列名 `Frame / Elapsed(s) / Mean Gray /
   Highlight Start (%) / Highlight End (%) / Reaction State / Start Confirm(s) / End Confirm(s) /

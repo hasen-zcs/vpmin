@@ -1,0 +1,21 @@
+{
+  "_comment": "生产对齐参数基线（2026-10-29 现场核对）。部署到现场时把 params 段拷进 settings.json，不要用默认值。",
+  "_source": "东贝现场生产引擎实测配置，逐炉对拍一致",
+  "params": {
+    "start_pixel": 180,
+    "end_pixel": 180,
+    "start_threshold": 40.0,
+    "end_threshold": 70.0,
+    "start_confirm": 0.2,
+    "end_confirm": 4.0,
+    "standard_min": 70.0,
+    "standard_max": 80.0,
+    "standard_tolerance": 5.0,
+    "max_seconds": 0.0
+  },
+  "_notes": {
+    "start_confirm": "0.2 秒。这是最容易出事的一个数：现场 ROI 只有约 1000 px²，亮光占比在 40% 阈值上下每 100 帧翻转 4 次；把它调到 1.5 秒会让起判晚 76 秒、90.47s 的反应被算成 14.50s。见 tests/test_real_frame_regression.py",
+    "end_confirm": "4.0 秒，结束判定需要长确认来压住熔液尾流的抖动，不要随意调小",
+    "standard_min_max": "现场后端下发 60~90（标准值 75）时以后端为准，这两个只是本地兜底"
+  }
+}
