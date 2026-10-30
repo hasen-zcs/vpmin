@@ -19,6 +19,8 @@ DEFAULT_PARAMS = {
     "guard_window": 0.0,
     "guard_peak": 80.0,
     "min_duration": 0.0,
+    "pause_threshold": 10.0,
+    "median_frames": 5,
 }
 
 

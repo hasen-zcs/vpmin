@@ -39,7 +39,7 @@ def main() -> None:
         assert fh.read(3) == b"\xef\xbb\xbf", "逐帧 CSV 应带 UTF-8 BOM（对齐原版 utf-8-sig）"
     with open(fpath, encoding="utf-8-sig", newline="") as fh:
         first_line = fh.readline().strip()
-    # 表头对齐参考实现 config.CSV_HEADERS（英文 11 列）
+    # 表头对齐 vp10.8.3 config.CSV_HEADERS（英文 11 列）
     assert first_line == "Frame,Elapsed(s),Mean Gray,Highlight Start (%)," \
                          "Highlight End (%),Reaction State,Start Confirm(s)," \
                          "End Confirm(s),Reaction Start(s),Reaction End(s)," \

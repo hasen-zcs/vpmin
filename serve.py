@@ -1,7 +1,7 @@
 """生产入口：装配所有层 → 起 HTTP 服务。
 
-    python serve.py --source "rtsp://admin:***@10.168.8.110:554/Streaming/Channels/102" \
-        --source2 "rtsp://admin:***@10.168.8.109:554/Streaming/Channels/102" \
+    python serve.py --source "rtsp://admin:***@192.0.2.10:554/Streaming/Channels/102" \
+        --source2 "rtsp://admin:***@192.0.2.11:554/Streaming/Channels/102" \
         --settings output/settings.json --biz-url http://127.0.0.1:8000/api/standards/current
 """
 
@@ -29,7 +29,12 @@ from vpmin.adapters.sink import JsonlSink                   # noqa: E402
 from vpmin.adapters.retention import Retention              # noqa: E402
 from vpmin.adapters.standard_http import HttpStandardFeed    # noqa: E402
 from vpmin.app.analysis import AnalysisLoop                  # noqa: E402
+from vpmin.app.fusion_loop import FusionLog                   # noqa: E402
+from vpmin.app.plc_loop import PlcEventLog, PlcLoop           # noqa: E402
+from vpmin.domain.fusion import LightResult, shift_segments    # noqa: E402
+from vpmin.domain.models import Segment                       # noqa: E402
 from vpmin.app.runtime import Runtime                        # noqa: E402
+from vpmin.domain.heat import HeatConfig, HeatTracker         # noqa: E402
 from vpmin.domain.curve import CurveBuffer                   # noqa: E402
 from vpmin.domain.state_machine import ReactionStateMachine  # noqa: E402
 from vpmin.domain.standard import StandardPolicy             # noqa: E402
@@ -97,6 +102,8 @@ def build(args):
         guard_window=float(params.get("guard_window", 0.0) or 0.0),
         guard_peak=float(params.get("guard_peak", 80.0) or 80.0),
         min_duration=float(params.get("min_duration", 0.0) or 0.0),
+        pause_threshold=float(params.get("pause_threshold", 0.0) or 0.0),
+        median_frames=int(params.get("median_frames", 0) or 0),
     )
 
     analysis = AnalysisLoop(probe=probe, runner=runner, painter=painter,
@@ -112,11 +119,63 @@ def build(args):
                               publish_fps=args.publish_fps,
                               reconnect_attempts=args.reconnect_attempts))
 
+    # ---- PLC 融合采集（A 方案）：--plc 给了 IP 才启用，没装 snap7 只告警不影响视觉 ----
+    # 产出两样东西（都在本模块自己的目录里，服务器上既有文件一律不碰）：
+    #   output/plc/plc_events.jsonl  —— 一变一行的事件流
+    #   output/plc/heat_records.jsonl —— 五类合一后的每炉记录
+    plc_loop = None
+    fusion = None
+    if args.plc:
+        try:
+            from vpmin.adapters.plc import PlcSource
+            events_path = args.plc_events or str(out_dir / "plc" / "plc_events.jsonl")
+            records_path = args.plc_records or str(out_dir / "plc" / "heat_records.jsonl")
+            (out_dir / "plc").mkdir(parents=True, exist_ok=True)
+            fusion = FusionLog(records_path, clock=time.time)
+            source = PlcSource(on_event=lambda ev: None, ip=args.plc,
+                               poll=args.plc_poll,
+                               weight_arrival=(args.plc_weight_arrival == "on"))
+            tracker = HeatTracker(HeatConfig())
+
+            def _on_tick():                     # 每秒一拍：同步亮光流状态 + 结算配对
+                tracker.light_stream_ok = bool(analysis.running)
+                fusion.settle()
+
+            plc_loop = PlcLoop(source, tracker, PlcEventLog(events_path),
+                               on_heat=fusion.add_heat, on_tick=_on_tick)
+            # 亮光起止喂给一炉状态机（排除「未球化」误判）
+            analysis.on_light = lambda kind, elapsed: plc_loop.light(
+                kind, runner.base.timestamp() + elapsed)
+
+            def _on_record(record, verdict, start_el, end_el):
+                if verdict is None or start_el is None:
+                    return
+                base_ts = runner.base.timestamp()
+                # 分段起止是「相对 elapsed」的，必须换算到和 PLC 同一条时间轴，
+                # 否则记录里的分段墙钟会显示成 1970 年（实测踩过）
+                segs = tuple(Segment(base_ts + s.start, base_ts + s.end, s.gap_before)
+                             for s in (verdict.segments or ()))
+                fusion.add_light(LightResult(
+                    start_ts=base_ts + start_el, end_ts=base_ts + end_el,
+                    duration=float(verdict.duration),
+                    abnormal_type=verdict.abnormal_type,
+                    reason=verdict.abnormal_reason,
+                    ok=verdict.ok, segments=segs))
+
+            analysis.on_record = _on_record
+        except Exception as exc:
+            print("[warn] PLC 未启用：%s" % exc, file=sys.stderr)
+            plc_loop, fusion = None, None
+
     runtime = Runtime(store=store, cameras=cameras, analyze_id=1, analysis=analysis,
                       probe=probe, runner=runner, standard=standard,
                       image_store=image_store, event_log=event_log, retention=retention,
                       csv_path=csv_path, images_dir=out_dir / "image",
-                      history=RoiHistory(str(out_dir / "roi_history.json")))
+                      history=RoiHistory(str(out_dir / "roi_history.json")), plc=plc_loop,
+                      fusion=fusion)
+    if plc_loop is not None:                  # PLC 到位/按按钮 = 炉边界 → 先结算上一炉亮光
+        plc_loop.on_arrival = runtime.flush_light_pending
+        plc_loop.on_button = runtime.flush_light_pending
     cam1.on_frame = runtime.on_frame          # 只有分析机位喂判定
     return runtime
 
@@ -145,6 +204,15 @@ def main() -> int:
     ap.add_argument("--host", default="0.0.0.0")
     ap.add_argument("--port", type=int, default=5080)
     ap.add_argument("--no-autostart", action="store_true", help="起来后不自动开始分析")
+    ap.add_argument("--plc", default=os.environ.get("PLC_IP", ""),
+                    help="PLC IP（如 192.0.2.1）；留空不启用 PLC 融合采集")
+    ap.add_argument("--plc-poll", type=float, default=0.1, help="PLC 轮询间隔（秒）")
+    ap.add_argument("--plc-weight-arrival", default="off", choices=["on", "off"],
+                    help="没有「铁水到位」位时，是否用重量变化猜到位。"
+                         "现场实测重量喂丝时就在抖（1792→1800→1840），会把一炉切碎，默认 off")
+    ap.add_argument("--plc-events", default="", help="事件落盘路径（默认 output/plc/plc_events.jsonl）")
+    ap.add_argument("--plc-records", default="",
+                    help="五类合一记录路径（默认 output/plc/heat_records.jsonl）")
     ap.add_argument("--cors-origin", default=os.environ.get("CORS_ORIGIN", "*"),
                     help='跨源白名单（默认 *；管理页面要直接 fetch 时用，逗号分隔可填多个）')
     args = ap.parse_args()
@@ -153,6 +221,7 @@ def main() -> int:
     api = ApiServer(runtime, HERE / "vpmin" / "server" / "static", args.host, args.port,
                     allowed_origin=args.cors_origin)
     runtime.start_cameras()          # 画面先出来；判定由「开始分析」控制
+    runtime.start_plc()              # PLC 采集与一炉状态机（独立线程，断了不影响视觉）
     if not args.no_autostart:
         runtime.start()
     print(f"服务已启动：http://{args.host}:{args.port}/  分析机位 {args.source}")

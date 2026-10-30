@@ -5,6 +5,7 @@
 
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -13,7 +14,8 @@ from ..adapters.formats import wall
 
 class AnalysisLoop:
     def __init__(self, probe, runner, painter, image_store=None,
-                 frame_csv=None, event_log=None, clock=None, frame_csv_factory=None):
+                 frame_csv=None, event_log=None, clock=None, frame_csv_factory=None,
+                 wall_clock=None):
         self.probe = probe
         self.runner = runner
         self.painter = painter
@@ -22,6 +24,9 @@ class AnalysisLoop:
         self.frame_csv_factory = frame_csv_factory
         self.event_log = event_log
         self.clock = clock or time.monotonic
+        self.wall_clock = wall_clock or datetime.now     # 可注入，便于测试
+        self.on_light = None          # 亮光事件回调 (kind, elapsed)：融合 PLC 判定用
+        self.on_record = None         # 亮光出记录回调 (record, verdict, start_el, end_el)
 
         self.running = False
         self._t0 = 0.0
@@ -39,6 +44,10 @@ class AnalysisLoop:
             return
         self.stop_reason = None
         self.runner.reset()
+        # base 必须跟 elapsed 的 0 点对齐：否则「停止→再开始」后所有墙钟时间
+        # 会倒回服务启动时刻，合并器按时间窗配对就会错配（实测确认的 bug）
+        if hasattr(self.runner, "base"):
+            self.runner.base = self.wall_clock()
         if self.frame_csv_factory is not None:
             if self.frame_csv is not None:
                 self.frame_csv.close()
@@ -63,6 +72,14 @@ class AnalysisLoop:
         self._drain()
 
     # ---------------- 每帧 ----------------
+    def flush_pending(self) -> None:
+        """强制把还在合并窗口里的那条落盘（PLC 到位=炉边界，不能跨炉合并）。"""
+        try:
+            self.runner.flush_pending()
+        except AttributeError:
+            return
+        self._drain()
+
     def on_frame(self, frame) -> None:
         if not self.running:
             return
@@ -82,6 +99,7 @@ class AnalysisLoop:
 
         if self.runner.count != before:
             self._event("START", elapsed, metrics)
+            self._notify_light("light_start", elapsed)
         self._drain()
 
         self.frames += 1
@@ -96,6 +114,8 @@ class AnalysisLoop:
         for record, end_elapsed, end_metrics in drain():
             self.last_record = record
             self._event("END", end_elapsed, end_metrics)
+            self._notify_light("light_end", end_elapsed)
+            self._notify_record(record, end_elapsed)
             name = self._save_uri(record.get("spheroidization_image", ""), partial=False)
             sink = getattr(self.runner, "sink", None)
             if sink is not None:
@@ -119,6 +139,27 @@ class AnalysisLoop:
             duration=(None if self.runner.reaction_start is None
                       else max(0.0, (self.runner.reaction_end or elapsed) - self.runner.reaction_start)),
         )
+
+    def _notify_record(self, record: dict, end_elapsed: float) -> None:
+        """把亮光的判定结果交给外部（五类合一用）。"""
+        if self.on_record is None:
+            return
+        verdict = getattr(self.runner, "last_verdict", None)
+        start_elapsed = (None if verdict is None
+                         else max(0.0, end_elapsed - float(verdict.duration)))
+        try:
+            self.on_record(record, verdict, start_elapsed, end_elapsed)
+        except Exception as exc:
+            print(f"[warn] 记录回调异常：{exc}", file=sys.stderr)
+
+    def _notify_light(self, kind: str, elapsed: float) -> None:
+        """把亮光起止告诉外部（PLC 一炉状态机用它排除「未球化」误判）。"""
+        if self.on_light is None:
+            return
+        try:
+            self.on_light(kind, elapsed)
+        except Exception as exc:
+            print(f"[warn] 亮光回调异常：{exc}", file=sys.stderr)
 
     def _event(self, kind: str, elapsed: float, metrics) -> None:
         if self.event_log is None or metrics is None:

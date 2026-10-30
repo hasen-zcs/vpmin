@@ -13,13 +13,9 @@ import os
 import random
 import sys
 
-# ---- 路径：原版在 <参考实现目录>，新实现在本仓库 ----
+# ---- 路径：原版在 /path/to/vp10.8.3-production，新实现在本仓库 ----
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-LEGACY = os.environ.get("LEGACY_DETECTOR_DIR", "")   # 参考实现
-if not LEGACY or not os.path.isdir(LEGACY):
-    print("跳过：未设置 LEGACY_DETECTOR_DIR（本测试需要参考实现做状态机对拍）")
-    raise SystemExit(0)
-sys.path.insert(0, LEGACY)
+sys.path.insert(0, "/path/to/vp10.8.3-production")
 sys.path.insert(0, HERE)
 
 from core.reaction_detector import ReactionDetector      # 原版，直接导入不复制

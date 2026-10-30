@@ -1,6 +1,6 @@
 """曲线图一致性回归：4 组固定样例出图，md5 必须与基线完全一致。
 
-基线来自 参考实现 原版算法（plot_render 精简移植前后、以及原版 core/gray_plot 三方一致）。
+基线来自 vp10.8.3 原版算法（plot_render 精简移植前后、以及原版 core/gray_plot 三方一致）。
 改动绘图相关代码后跑一遍：只要 md5 变了，说明图样变了，必须停下来说明原因。
 
 用法：python3 tests/verify_plot_parity.py

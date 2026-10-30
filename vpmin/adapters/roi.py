@@ -46,7 +46,7 @@ class Roi:
         return mask.astype(bool)
 
     def summary(self) -> str:
-        """人可读描述（文案与参考实现 core/roi.py 一致）。"""
+        """人可读描述（文案与 vp10.8.3 core/roi.py 一致）。"""
         x, y, w, h = self.box
         if self.kind == "rect":
             return f"矩形 ROI (x={x}, y={y}, w={w}, h={h})"

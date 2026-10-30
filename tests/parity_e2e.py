@@ -2,7 +2,7 @@
 
 用法（在 minimal/ 目录）：
     python3 tests/parity_e2e.py --video <mp4> \
-        --settings <legacy-detector/output/settings.json> --max-frames 0
+        --settings <vp10.8.3-file/output/settings.json> --max-frames 0
 """
 
 import argparse
@@ -11,10 +11,7 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-REF = os.environ.get("LEGACY_DETECTOR_DIR", "")   # 参考实现代码目录（本地对拍用，仓库里不含）
-if not REF or not os.path.isdir(REF):
-    print("跳过：未设置 LEGACY_DETECTOR_DIR（本测试需要参考实现代码做端到端对拍）")
-    raise SystemExit(0)
+REF = "/path/to/vp10.8.3-production"
 
 os.environ.setdefault("BIZ_ENABLED", "0")
 os.environ.setdefault("GRAY_CURVE_AUTOSAVE", "0")

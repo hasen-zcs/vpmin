@@ -8,7 +8,7 @@
 这个用例把「参数 → 起判时刻」钉死：以后谁把 start_confirm 调大，测试立刻红。
 
 用法：
-    /home/hasen/miniconda3/bin/python tests/test_real_frame_regression.py
+    python3 tests/test_real_frame_regression.py
 """
 
 import csv

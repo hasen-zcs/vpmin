@@ -1,15 +1,23 @@
+# 运行产物（数据、日志、曲线图、逐帧 CSV、计数器）
 output/
 *.log
 reaction_counter.json
 roi_history.json
 reactions*.jsonl
+
+# 配置与凭据（现场地址/密码绝不进仓库）
 shadow.env
 *.env
 !deploy/vpmin.env.example
 .env*
+
+# Python / 编辑器
 __pycache__/
 *.pyc
+.pytest_cache/
 .idea/
 .vscode/
-*.bak
+
+# 临时备份
 *.pre-*
+*.bak

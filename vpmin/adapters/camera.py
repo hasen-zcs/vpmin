@@ -4,7 +4,7 @@
 - 观看机位：不传 on_frame，只广播画面
 - 断流自动重连（次数可配，0 = 无限重试）
 
-RTSP 低延迟与超时参数对齐原版 参考实现（core/video_source.py）：
+RTSP 低延迟与超时参数对齐原版 vp10.8.3（core/video_source.py）：
   * OPENCV_FFMPEG_CAPTURE_OPTIONS = rtsp_transport;tcp（海康默认走 UDP 会花屏/丢包）
   * CAP_PROP_BUFFERSIZE = 1（最低延迟，避免堆积旧帧）
   * OPEN/READ_TIMEOUT_MSEC（断流时 read 不会永久阻塞）

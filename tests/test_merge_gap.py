@@ -6,7 +6,7 @@
   3. 曲线也是连着的：合并后曲线点数 = 两段之和（图不会只剩后半截）
   4. 间隙超过 merge_gap 时仍然分成两条（不能无限吞）
 
-用法：/home/hasen/miniconda3/bin/python tests/test_merge_gap.py
+用法：python3 tests/test_merge_gap.py
 """
 
 import os
@@ -69,9 +69,10 @@ class FakeSink:
     def __init__(self):
         self.rows = []
 
-    def build(self, count, start, end, verdict, image):
+    def build(self, count, start, end, verdict, image, extras=None):
         row = {"reaction_count": count, "start": start, "end": end,
                "duration": verdict.duration, "status": verdict.text, "image": image}
+        row.update(extras or {})
         return row
 
     def write(self, record):

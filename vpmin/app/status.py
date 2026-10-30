@@ -5,7 +5,7 @@ from ..domain.models import Window
 
 
 def status_text(running: bool, started: bool, ended: bool, verdict) -> str:
-    """与参考实现 同一套文案。"""
+    """与 vp10.8.3 同一套文案。"""
     if not started:
         return "等待反应" if running else "未开始"
     if not ended:

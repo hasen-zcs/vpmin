@@ -5,7 +5,7 @@ import sys
 
 from .formats import num3
 
-# 列名与顺序对齐参考实现 config.CSV_HEADERS
+# 列名与顺序对齐 vp10.8.3 config.CSV_HEADERS
 HEADER = (
     "Frame", "Elapsed(s)", "Mean Gray",
     "Highlight Start (%)", "Highlight End (%)", "Reaction State",

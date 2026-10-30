@@ -1,6 +1,6 @@
-"""曲线图绘制：直接复用原版 参考实现的绘图算法，保证图与生产一模一样。
+"""曲线图绘制：直接复用原版 vp10.8.3 的绘图算法，保证图与生产一模一样。
 
-plot_series.py / plot_render.py 是从参考实现的 core/gray_series.py、
+plot_series.py / plot_render.py 是从 vp10.8.3 的 core/gray_series.py、
 core/gray_plot.py 原样移植（只改了 import），所以像素级一致：
 960×540、蓝线+淡色填充、浅灰像素下限虚线、鲜红开始三件套（粗线+三角+空心圆点）、
 灰色结束虚线、网格+刻度、JPEG 质量 92、默认不写信息文字。

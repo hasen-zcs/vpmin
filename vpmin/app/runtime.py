@@ -10,6 +10,7 @@ from pathlib import Path
 
 from ..adapters.formats import wall
 from ..adapters.roi import Roi
+from ..domain.filter import MedianFilter
 from ..domain.trigger import Thresholds
 from . import status
 
@@ -17,7 +18,7 @@ from . import status
 class Runtime:
     def __init__(self, *, store, cameras, analyze_id, analysis, probe, runner,
                  standard, image_store, event_log, csv_path, images_dir, history=None,
-                 retention=None):
+                 retention=None, plc=None, fusion=None):
         self.store = store
         self.history = history
         self.cameras = cameras
@@ -29,6 +30,8 @@ class Runtime:
         self.image_store = image_store
         self.event_log = event_log
         self.retention = retention
+        self.plc = plc                       # PlcLoop 或 None（融合采集，见 app/plc_loop.py）
+        self.fusion = fusion                 # FusionLog 或 None（五类合一，见 app/fusion_loop.py）
         self.csv_path = str(csv_path)
         self.images_dir = Path(images_dir)
         self.lock = threading.RLock()
@@ -76,11 +79,25 @@ class Runtime:
         with self.lock:
             self.analysis.stop()
 
+    def flush_light_pending(self) -> None:
+        """PLC 到位事件到来 = 炉边界：立刻结算上一炉的亮光记录，避免跨炉合并。"""
+        with self.lock:
+            self.analysis.flush_pending()
+
+    def start_plc(self):
+        if self.plc is not None:
+            self.plc.start()
+
     def shutdown(self):
         with self.lock:
             self.analysis.stop()
             for cam in self.cameras:
                 cam.stop()
+        if self.plc is not None:
+            try:
+                self.plc.stop()
+            except Exception:
+                pass
 
     @property
     def running(self) -> bool:
@@ -143,6 +160,8 @@ class Runtime:
                     "last_error": self.standard.last_error,
                 },
                 "roi_summary": self.probe.roi.summary() if self.probe.roi is not None else "",
+                "plc": self.plc.status() if self.plc is not None else None,
+                "fusion": self.fusion.status() if self.fusion is not None else None,
                 "stop_reason": self.analysis.stop_reason,
             })
 
@@ -205,6 +224,13 @@ class Runtime:
                                                     getattr(self.runner, "guard_peak", 80.0)))
             self.runner.min_duration = max(0.0, float(params.get("min_duration",
                                                                 getattr(self.runner, "min_duration", 0.0))))
+            self.runner.pause_threshold = max(0.0, float(params.get("pause_threshold",
+                                                             getattr(self.runner, "pause_threshold", 0.0))))
+            new_median = max(0, int(params.get("median_frames",
+                                              getattr(self.runner, "median_frames", 0))))
+            if new_median != getattr(self.runner, "median_frames", 0):
+                self.runner.median_frames = new_median
+                self.runner.median = MedianFilter(new_median)   # 换档时清空缓存，别混着算
             if self.event_log is not None and hasattr(self.event_log, "set_params"):
                 self.event_log.set_params(self.params())      # 事件表元信息列跟着热更
             self.store.save(self._roi_dict(), self.params())
@@ -267,6 +293,8 @@ class Runtime:
             "guard_window": getattr(self.runner, "guard_window", 0.0),
             "guard_peak": getattr(self.runner, "guard_peak", 80.0),
             "min_duration": getattr(self.runner, "min_duration", 0.0),
+            "pause_threshold": getattr(self.runner, "pause_threshold", 0.0),
+            "median_frames": getattr(self.runner, "median_frames", 0),
         }
 
     def _roi_dict(self) -> dict:

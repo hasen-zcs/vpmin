@@ -2,7 +2,7 @@
 
 规则：起判后 guard_window 秒内，亮光占比峰值必须 ≥ guard_peak，否则丢弃。
 
-用法：/home/hasen/miniconda3/bin/python tests/test_spurious_filter.py
+用法：python3 tests/test_spurious_filter.py
 """
 
 import os
@@ -54,8 +54,10 @@ class Sink:
     def __init__(self):
         self.rows = []
 
-    def build(self, count, start, end, verdict, image):
-        return {"n": count, "start": start, "end": end, "dur": verdict.duration}
+    def build(self, count, start, end, verdict, image, extras=None):
+        row = {"n": count, "start": start, "end": end, "dur": verdict.duration}
+        row.update(extras or {})
+        return row
 
     def write(self, r):
         self.rows.append(r)

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 生产启动：一个命令起服务（读环境变量或 .env）
+# 生产启动（与 10.8.3 的 run_all.sh 等价：一个命令起服务）
 set -e
 cd "$(dirname "$0")"
 SOURCE="${SOURCE:?需要设置 SOURCE=rtsp://...}"

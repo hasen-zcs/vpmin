@@ -1,6 +1,6 @@
 # 极简检测模块 · 设计说明（先设计，后实施）
 
-> 目标：**功能与参考实现 判定链路完全一致**，代码从 6267 行压到约 600 行，且按层次拆分、每个类只做一件事。
+> 目标：**功能与 vp10.8.3 判定链路完全一致**，代码从 6267 行压到约 600 行，且按层次拆分、每个类只做一件事。
 > 对齐基准：`core/reaction_detector.py`（状态机）、`core/engine.py::process/judge_duration/_freeze_verdict_locked`（像素口径/判定/冻结）、`core/biz_standard.py::window`（三级回退）。
 
 ## 1. 分层

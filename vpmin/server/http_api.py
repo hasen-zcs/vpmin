@@ -1,6 +1,6 @@
 """HTTP 层：只做路由分发与序列化，不含业务。
 
-接口（与原版 参考实现 对齐的部分尽量同名）：
+接口（与原版 vp10.8.3 对齐的部分尽量同名）：
     GET  /                      单页前端
     GET  /api/status            状态（reaction / cameras / standard / curve_images）
     GET  /api/curve?since=N     实时曲线增量

@@ -41,11 +41,16 @@ class JsonlSink:
         return self.root if self.root.suffix == ".jsonl" else self.root / self.filename
 
     def build(self, count: int, start_wall: str, end_wall: str,
-              verdict: Verdict, image: str) -> dict:
-        return dict(zip(SCHEMA, (
+              verdict: Verdict, image: str, extras: dict = None) -> dict:
+        record = dict(zip(SCHEMA, (
             count, start_wall, start_wall, end_wall,
             hms(verdict.duration), verdict.text, image,
         )))
+        # 追加字段（abnormal_type / abnormal_reason / 分段明细）只往后加，不改老 7 列
+        for key, value in (extras or {}).items():
+            if key not in record:
+                record[key] = value
+        return record
 
     def write(self, record: dict) -> None:
         path = self.path

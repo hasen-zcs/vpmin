@@ -40,7 +40,7 @@ def test_missing_file():
             "1. 文件不存在 → 默认10参数+roi=None",
             loaded["roi"] is None
             and loaded["params"] == DEFAULT_PARAMS
-            and len(loaded["params"]) == 10,
+            and len(loaded["params"]) == len(DEFAULT_PARAMS),
             detail=str(loaded),
         )
 
@@ -105,7 +105,7 @@ def test_corrupt_json():
         ok = (
             loaded["roi"] is None
             and loaded["params"]["start_pixel"] == 999
-            and len(loaded["params"]) == 10
+            and len(loaded["params"]) == len(DEFAULT_PARAMS)
         )
         check("3b. 字段缺失 → 默认值补齐", ok, detail=str(loaded))
 
