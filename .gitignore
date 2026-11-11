@@ -21,3 +21,7 @@ __pycache__/
 # 临时备份
 *.pre-*
 *.bak
+vpmin.bak-*/
+
+# 测试虚拟环境
+.venv-test/

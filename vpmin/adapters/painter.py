@@ -10,6 +10,7 @@ core/gray_plot.py 原样移植（只改了 import），所以像素级一致：
 """
 
 import base64
+from typing import Optional
 
 import cv2
 
@@ -26,12 +27,28 @@ class CurvePainter:
         self.autoscale = bool(autoscale)
         self.max_draw_points = int(max_draw_points)
 
-    def draw(self, points, start_t=None, end_t=None, start_pixel=None) -> str:
+    def draw(self, points, start_t=None, end_t=None, start_pixel=None,
+             duration: Optional[float] = None,
+             button_t: Optional[float] = None,
+             draw_start: Optional[float] = None) -> str:
+        """画曲线图，返回 data URI。
+
+        2026-11-04 新增参数（均 None=旧行为）：
+            duration:   球化时长（入库口径），给了就在底部信息条画 `time: XX.Xs`
+            button_t:   按钮时刻（elapsed 秒，已校验有效），给了就画按钮标记线
+            draw_start: 画图横轴起点（elapsed 秒）；曲线点早于它的被截掉
+        """
+        if draw_start is not None:
+            points = [p for p in (points or []) if p[0] >= draw_start]
         series = GraySeries()
         series.extend(points or [])
         meta = {"t_start": start_t, "t_end": end_t}
         if start_pixel is not None:
             meta["start_pixel"] = start_pixel
+        if duration is not None:
+            meta["duration"] = duration
+        if button_t is not None:
+            meta["t_button"] = button_t
         try:
             img = render(series, meta, autoscale=self.autoscale,
                          max_draw_points=self.max_draw_points)

@@ -18,9 +18,11 @@ sys.path.insert(0, HERE)
 from vpmin.adapters.painter import CurvePainter
 
 BASELINE = {
-    "a_polygon_full": "275b170ca4eb54ca000f2fa0eb59b5b4",
+    # 2026-11-04 更新：结束标记由灰 1px 细虚线升级为暗金 2px 虚线+底部三角+「亮光结束」标签
+    # （老板拍板的产品化改动，非回归）；b/d 不含结束标记，基线保持不变（兼容性证据）
+    "a_polygon_full": "27ecdd29274fd7f7002c36f90e7bdf94",
     "b_partial": "3b62d04396251a2b4ee65d908dba4021",
-    "c_short": "9d0c7b50b315c5fe33f671e89f972b27",
+    "c_short": "9fdcae384a1329f62ed0b3d6850093d6",
     "d_no_marks": "91a242e73cf95f44c3491bc8f650b8be",
 }
 

@@ -15,6 +15,15 @@
 960×540 + 白底 + 网格 + 刻度 + 坐标轴名 + 蓝曲线(2px)+淡色填充 + 浅灰像素下限虚线
 + 鲜红开始三件套（3px 实线 / 顶部三角 / 曲线上空心圆点）+ 灰色结束虚线（6/6 细虚线）。
 
+2026-11-04 产品化增强（老板拍板，正式改画风，verify_plot_parity 基线已同步更新）：
+  1. 反应结束标记升级：灰色 1px 细虚线 → 暗金 2px 虚线 + 底部实心三角 + 「亮光结束」标签；
+  2. 新增按钮标记：深蓝 2px 虚线 + 顶部实心方块 + 「按钮」标签（meta 给 t_button 才画）；
+  3. 画布底部加 40px 深色信息条：`time: XX.Xs`（球化时长=入库口径，与横轴跨度无关）；
+     仅在 meta 给了 duration 时出现（960×540 → 960×580），不给则与旧版完全一致。
+  4. 中文标签：cv2.putText 不支持中文，走 PIL + CJK 字体（路径可用环境变量
+     VP_MIN_CJK_FONT 覆盖，默认 Noto Serif CJK）；字体不可用时自动退英文
+     （LIGHT END / BTN），保证任何环境都能出图。
+
 ============================
 
 把 core/gray_series.py 里的 GraySeries 画成 **JPG**，存到 output/image/。
@@ -82,10 +91,72 @@ COLOR_DIM = (140, 140, 140)
 COLOR_CURVE = (190, 110, 30)          # 蓝：曲线本体
 COLOR_FILL = (245, 225, 200)          # 曲线下方淡色填充
 COLOR_PIXEL_THR = (210, 210, 210)     # 浅灰：开始/结束像素下限
-COLOR_END_MARK = (150, 150, 150)      # 灰：反应结束（背景参考）
+COLOR_END_MARK = (62, 141, 176)       # 暗金：反应结束（2026-11-04 由灰细虚线升级）
+COLOR_BUTTON_MARK = (235, 140, 25)    # 深蓝：按钮按下时刻（新增）
+COLOR_BAR_BG = (42, 40, 36)           # 信息条底色
+COLOR_BAR_TEXT = (235, 232, 222)      # 信息条文字
 COLOR_START_MARK = (30, 30, 235)      # 鲜红：反应开始，最醒目
 
 FONT = cv2.FONT_HERSHEY_SIMPLEX
+
+# 2026-11-04：底部信息条高度（仅 meta 给 duration 时画）
+BAR_H = 40
+
+# CJK 字体（PIL 渲染中文标签用；不可用则退英文）
+_CJK_FONT = None
+_CJK_TRIED = False
+_CJK_EN_FALLBACK = {"亮光结束": "LIGHT END", "按钮": "BTN"}
+
+
+def _pil_cjk_font():
+    """惰性加载 CJK 字体；拿不到返回 None（标签退英文）。"""
+    global _CJK_FONT, _CJK_TRIED
+    if _CJK_TRIED:
+        return _CJK_FONT
+    _CJK_TRIED = True
+    try:
+        import os
+        from PIL import ImageFont
+        path = os.environ.get(
+            "VP_MIN_CJK_FONT",
+            "/usr/share/fonts/opentype/noto/NotoSerifCJK-Bold.ttc")
+        if os.path.exists(path):
+            _CJK_FONT = ImageFont.truetype(path, 16)
+    except Exception:
+        _CJK_FONT = None
+    return _CJK_FONT
+
+
+def _put_text(
+    img: np.ndarray,
+    text: str,
+    org: Tuple[int, int],
+    color=COLOR_TEXT,
+    cjk_px: int = 16,
+):
+    """文字：ASCII 走 cv2；含中文走 PIL + CJK 字体，字体不可用退英文。"""
+    if text.isascii():
+        _put(img, text, org, 0.45, color)
+        return
+    font = _pil_cjk_font()
+    if font is None:
+        _put(img, _CJK_EN_FALLBACK.get(text, text), org, 0.45, color)
+        return
+    try:
+        from PIL import Image, ImageDraw
+        if font.size != cjk_px:                      # 不同字号重载一次
+            from PIL import ImageFont
+            font = ImageFont.truetype(font.path, cjk_px)
+        pil = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        d = ImageDraw.Draw(pil)
+        # 白底托底：防止标签压在曲线/填充上看不清（2026-11-04 真实炉次验收发现）
+        bbox = d.textbbox((org[0], org[1]), text, font=font)
+        d.rectangle([bbox[0] - 2, bbox[1] - 1, bbox[2] + 2, bbox[3] + 2], fill=(255, 255, 255))
+        d.text((org[0], org[1]), text, font=font,
+               fill=(color[2], color[1], color[0]))
+        img[:] = cv2.cvtColor(np.array(pil), cv2.COLOR_RGB2BGR)
+    except Exception:
+        _put(img, _CJK_EN_FALLBACK.get(text, text), org, 0.45, color)
 
 # ============================================================
 # 小工具
@@ -267,16 +338,44 @@ def render(
     # ---------------- 边框（先画，免得压住下面的标注）----------------
     cv2.rectangle(img, (x_left, y_top), (x_right, y_bottom), COLOR_FRAME, 1)
 
-    # ---------------- 反应结束：细灰虚线，只作背景参考 ----------------
+    # ---------------- 反应结束：暗金虚线 + 底部三角 + 标签 ----------------
+    # 2026-11-04：由「灰色 1px 细虚线（背景参考）」升级为醒目标记（老板拍板）
     t_end = _meta_time(meta, "t_end")
 
     if t_end is not None and t0 <= t_end <= t1:
         x, _ = map_point(t_end, g0, t0, t1, g0, g1, plot)
-        _dashed_line(img, (x, y_top), (x, y_bottom), COLOR_END_MARK, 1, 6, 6)
+        _dashed_line(img, (x, y_top), (x, y_bottom), COLOR_END_MARK, 2, 9, 6)
+        half = 9
+        cv2.fillPoly(
+            img,
+            [np.array(
+                [
+                    (x - half, y_bottom + 3),
+                    (x + half, y_bottom + 3),
+                    (x, y_bottom - 11),
+                ],
+                dtype=np.int32,
+            )],
+            COLOR_END_MARK,
+        )
+        label = "亮光结束"
+        lx = x + 6 if x + 6 + 70 <= x_right else x - 76   # 靠右缘放线左侧，只画一次
+        _put_text(img, label, (lx, y_top + 8), COLOR_END_MARK)
+
+    # ---------------- 按钮按下：深蓝虚线 + 顶部方块 + 标签 ----------------
+    # 2026-11-04 新增。t_button 由 runner 校验后传入（按钮→首亮 15~90s 才画）
+    t_button = _meta_time(meta, "t_button")
+
+    if t_button is not None and t0 <= t_button <= t1:
+        xb, _ = map_point(t_button, g0, t0, t1, g0, g1, plot)
+        _dashed_line(img, (xb, y_top), (xb, y_bottom), COLOR_BUTTON_MARK, 2, 9, 6)
+        cv2.rectangle(img, (xb - 5, y_top - 14), (xb + 5, y_top - 4),
+                      COLOR_BUTTON_MARK, -1, cv2.LINE_AA)
+        label_b = "按钮"
+        lxb = xb + 6 if xb + 6 + 40 <= x_right else xb - 46
+        _put_text(img, label_b, (lxb, y_top + 8), COLOR_BUTTON_MARK)
 
     # ---------------- 反应开始：显著标注 ----------------
-    #
-    # 这是 10.6 的重点：一眼就能看出"反应从哪一刻开始"。
     # 配合前置采样（默认开始前 5 秒），反应前后的灰度变化一目了然。
     # 三件套：粗实线 + 顶部向下三角 + 曲线上的空心圆点。
     t_start = _meta_time(meta, "t_start")
@@ -318,5 +417,16 @@ def render(
     axis_label = "Mean Gray"
     size = cv2.getTextSize(axis_label, FONT, 0.46, 1)[0]
     _put(img, axis_label, (x_left - size[0] // 2 - 26, y_top - 8), 0.46, COLOR_AXIS)
+
+    # ---------------- 底部信息条：time: XX.Xs ----------------
+    # 2026-11-04 新增。time = 球化时长（入库口径），不是横轴跨度。
+    # 只在 meta 给了 duration 时出现；不给则画布与旧版逐像素一致。
+    duration = _meta_time(meta, "duration")
+
+    if duration is not None:
+        bar = np.full((BAR_H, width, 3), COLOR_BAR_BG, dtype=np.uint8)
+        cv2.line(bar, (0, 0), (width - 1, 0), (90, 141, 176), 2, cv2.LINE_AA)
+        _put(bar, "time: %.1fs" % duration, (12, 27), 0.62, COLOR_BAR_TEXT, 1)
+        return np.vstack([img, bar])
 
     return img

@@ -43,6 +43,21 @@ class CurveBuffer:
         self._active = None
         return points
 
+    def resume(self) -> bool:
+        """断点续接：把上一段曲线接回来继续画，间隙里的点尽量补齐。
+
+        续接后 close() 得到的 _last 就是「两段拼起来」的完整曲线，
+        所以落盘那张图也是连着的，不会只剩后半截。
+        """
+        if not self._last:
+            return False
+        self._active = list(self._last)
+        t_end = self._active[-1][0]
+        for point in self._pre:            # 间隙期间留下的前置点，时间更晚的接在后面
+            if point[0] > t_end:
+                self._active.append(point)
+        return True
+
     def view(self) -> List[Point]:
         """给页面看的曲线：进行中优先，结束后留在上一条。"""
         return list(self._active if self._active is not None else self._last)
